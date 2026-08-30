@@ -50,24 +50,26 @@ async def run_evaluation(golden_path: str = "golden_dataset.json") -> dict:
     # Lazy imports: ragas has heavy deps that may not be installed
     from ragas import SingleTurnSample, EvaluationDataset, evaluate
     from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall
+    from ragas.llms import LangchainLLMWrapper
+    from ragas.embeddings import LangchainEmbeddingsWrapper
 
     golden = load_golden_dataset(golden_path)
     print(f"Evaluating on {len(golden)} questions...")
 
     # Evaluator LLM and embeddings - used by RAGAS internally to compute metrics
     # (separate from the LLM used to generate answers in your pipeline)
-    evaluator_llm = ChatOpenAI(
+    evaluator_llm = LangchainLLMWrapper(ChatOpenAI(
         model="openai/gpt-4o-mini",
         api_key=settings.openrouter_api_key,
         base_url=settings.openrouter_base_url,
-    )
-    evaluator_emb = OpenAIEmbeddings(
+    ))
+    evaluator_emb = LangchainEmbeddingsWrapper(OpenAIEmbeddings(
         model="text-embedding-3-small",
         api_key=settings.openrouter_api_key,
         base_url=settings.openrouter_base_url,
-    )
+    ))
 
-    # Initialize metrics with explicit evaluator (v0.2 pattern)
+    # Initialize metrics with explicit evaluator (v0.2+ pattern)
     metrics = [
         Faithfulness(llm=evaluator_llm),
         AnswerRelevancy(llm=evaluator_llm, embeddings=evaluator_emb),
@@ -97,11 +99,17 @@ async def run_evaluation(golden_path: str = "golden_dataset.json") -> dict:
 
     print("\nRunning RAGAS metrics (makes LLM calls - takes a few minutes)...")
     results = evaluate(dataset=dataset, metrics=metrics)
-    score_dict = results.to_pandas().mean().to_dict()
+    df = results.to_pandas()
+    # Only average numeric columns (score columns), skip string columns like 'user_input' etc.
+    numeric_cols = df.select_dtypes(include=['number']).columns
+    score_dict = df[numeric_cols].mean().to_dict()
 
     print("\n" + "=" * 55)
     print("RAGAS RESULTS")
     print("=" * 55)
+    if not score_dict:
+        print("  No scores computed (likely due to API credit exhaustion).")
+        print("  Add OpenRouter credits and re-run.")
     for metric, score in score_dict.items():
         status = "✓ PASS" if score >= 0.80 else "✗ BELOW 0.80"
         print(f"{metric:<28}{score:.3f}  {status}")

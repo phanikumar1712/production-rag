@@ -27,6 +27,8 @@ python-dotenv==1.2.3
 
 # Evaluation
 ragas==0.3.1
+langchain-google-vertexai>=2.0.0  # required by ragas for ChatVertexAI import
 
 # Document loaders
 unstructured==0.27.1
+Markdown==3.5.2  # required by UnstructuredMarkdownLoader for .md files

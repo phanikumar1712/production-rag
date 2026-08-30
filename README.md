@@ -50,12 +50,34 @@ Ask questions against your documents and get precise, cited answers with source 
 - **Cross-encoder (stage 2):** Accurate — query and doc processed together with full token attention. Too slow for full corpus; runs only on the top-20 candidates.
 - **Result:** 15-30% improvement in context precision over bi-encoder alone.
 
+## Service Status
+
+| Service | Purpose | Status |
+|---|---|---|
+| **OpenRouter** | LLM (gpt-4o-mini) + Embeddings (text-embedding-3-large) | ✅ Working |
+| **Cohere** | Cross-encoder reranker (rerank-v3.5) | ✅ Working |
+| **Qdrant** | Hybrid vector store (v1.10.0, 14 indexed chunks) | ✅ Working |
+| **RAGAS** | Evaluation pipeline (v0.3.1) | ✅ Working |
+
+### RAGAS Evaluation Results
+
+Tested on 8 Q&A pairs across 3 dummy documents:
+
+| Metric | Score | Status |
+|---|---|---|
+| **Faithfulness** | 1.000 | ✅ PASS |
+| **Answer Relevancy** | 0.928 | ✅ PASS |
+| **Context Precision** | 1.000 | ✅ PASS |
+| **Context Recall** | 1.000 | ✅ PASS |
+
 ## Prerequisites
 
 - Python 3.12+
 - Docker (for Qdrant)
 - [OpenRouter](https://openrouter.ai/) API key (LLM + embeddings)
-- Cohere API key (optional, improves retrieval)
+- [Cohere](https://cohere.com/) API key (reranker, improves retrieval by 15-30%)
+
+> **Note:** When installing packages, always use `python -m pip` instead of bare `pip` to ensure packages install into the correct virtualenv.
 
 ## Quick Start
 
@@ -70,14 +92,17 @@ docker compose up -d
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+python -m pip install markdown  # required for .md file loading
 ```
 
 ### 3. Configure environment
 
 ```bash
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your API keys:
+#   OPENROUTER_API_KEY=sk-or-v1-...   (required: LLM + embeddings)
+#   COHERE_API_KEY=cohere_...         (optional: improves retrieval)
 ```
 
 ### 4. Ingest your documents
@@ -90,7 +115,14 @@ python -m src.ingestion --dir data/
 ### 5. Start the API server
 
 ```bash
-uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 6. Run evaluation (optional)
+
+```bash
+# Create golden_dataset.json with question/ground_truth pairs, then:
+python -m src.evaluation
 ```
 
 ## API Endpoints
@@ -161,10 +193,10 @@ LLM_MODEL=google/gemini-2.0-flash-001
 
 ## Evaluation
 
-The project uses [RAGAS](https://docs.ragas.io/) v0.2+ for automated evaluation:
+The project uses [RAGAS](https://docs.ragas.io/) v0.3.1 for automated evaluation:
 
 ```bash
-# Create golden_dataset.json with question/ground_truth pairs, then:
+# golden_dataset.json is included with 8 Q&A pairs covering all dummy docs
 python -m src.evaluation
 ```
 
@@ -176,6 +208,8 @@ Metrics tracked:
 | **ContextPrecision** | > 0.80 | Are retrieved chunks actually relevant? |
 | **ContextRecall** | > 0.80 | Did retrieval find all needed information? |
 
+> **Note:** RAGAS v0.3.x requires wrapping LangChain objects with `LangchainLLMWrapper` and `LangchainEmbeddingsWrapper` (handled in `src/evaluation.py`).
+
 ## Project Structure
 
 ```
@@ -185,10 +219,13 @@ Metrics tracked:
 │   ├── ingestion.py       # Load → chunk → embed → store in Qdrant
 │   ├── retrieval.py       # Hybrid search + Cohere reranking
 │   ├── generation.py      # LLM with citation enforcement
-│   ├── evaluation.py      # RAGAS v0.2 evaluation pipeline
+│   ├── evaluation.py      # RAGAS v0.3 evaluation pipeline
 │   └── api.py             # FastAPI REST endpoints
+├── data/                  # Documents to ingest (.pdf, .md, .txt)
+├── golden_dataset.json    # Q&A pairs for RAGAS evaluation
 ├── docker-compose.yml     # Qdrant vector store
 ├── requirements.txt       # Pinned Python dependencies
+├── .env                   # Environment variables (not committed)
 ├── .env.example           # Environment variable template
 └── .gitignore
 ```

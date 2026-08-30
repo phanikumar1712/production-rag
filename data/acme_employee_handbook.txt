@@ -1,0 +1,19 @@
+Acme Corporation Employee Handbook 2024
+
+Section 1: Company Overview
+Acme Corporation was founded in 1985 by John Smith in San Francisco, California. The company specializes in enterprise software solutions and currently employs over 5,000 people worldwide. Acme's mission is to empower businesses through innovative technology.
+
+Section 2: Leave Policy
+All full-time employees are entitled to 20 days of paid time off (PTO) per year. This includes 10 vacation days, 5 sick days, and 5 personal days. New hires accrue PTO at a rate of 1.67 days per month. Unused PTO carries over to the next year, up to a maximum of 30 days.
+
+Section 3: Remote Work Policy
+Acme offers a hybrid work model. Employees are expected to be in the office at least 3 days per week (Monday, Tuesday, and Thursday). Fully remote work may be approved on a case-by-case basis by the employee's direct manager. All remote employees must have a secure home office setup and reliable internet connection.
+
+Section 4: Benefits
+- Health insurance: Medical, dental, and vision coverage after 90 days of employment
+- 401(k): Company matches 50% of employee contributions up to 6% of salary
+- Learning & Development: $2,000 annual budget for courses, conferences, and certifications
+- Parental Leave: 16 weeks paid leave for primary caregivers, 8 weeks for secondary caregivers
+
+Section 5: Code of Conduct
+All employees are expected to maintain professionalism and treat colleagues with respect. Harassment, discrimination, and bullying will not be tolerated. Reports should be made to HR at hr@acme.com or through the anonymous ethics hotline at 1-800-555-ETHC.
