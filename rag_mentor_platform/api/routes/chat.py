@@ -4,8 +4,7 @@ Two endpoints:
 - POST /query: returns full answer at once
 - POST /query/stream: streams tokens via Server-Sent Events (SSE)
 
-Streaming is what you want for user-facing UIs. Users see the first token
-in under a second even if full generation takes 3-4 seconds.
+This is a migrated copy of `src/api.py` placed into the new scaffold.
 """
 
 from typing import AsyncGenerator
@@ -16,9 +15,9 @@ from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from dotenv import load_dotenv
-from src.retrieval import retrieve_documents
-from src.generation import generate_answer, format_context, SYSTEM_PROMPT_TEMPLATE
-from src.config import settings
+from rag_mentor_platform.retrieval.retriever import retrieve_documents
+from rag_mentor_platform.llm.response_generator import generate_answer, format_context, SYSTEM_PROMPT_TEMPLATE
+from rag_mentor_platform.core import settings
 
 load_dotenv()
 

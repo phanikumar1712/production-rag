@@ -6,7 +6,7 @@ Why offline (not at query time):
 - Indexed vectors persist in Qdrant's volume
 - New docs can be added incrementally
 
-Run with: python -m src.ingestion --dir data/
+Run with: python -m rag_mentor_platform.ingestion.document_processor --dir data/
 """
 
 import argparse
@@ -20,7 +20,7 @@ from langchain_community.document_loaders import (
 from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
 from dotenv import load_dotenv
-from src.config import settings
+from rag_mentor_platform.core import settings
 
 load_dotenv()
 

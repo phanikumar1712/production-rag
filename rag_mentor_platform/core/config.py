@@ -1,6 +1,7 @@
 """
 All settings loaded from environment variables via pydantic-settings.
 Never hardcode API keys in code.
+Contains RAG-specific configuration knobs only.
 """
 
 from pydantic_settings import BaseSettings
