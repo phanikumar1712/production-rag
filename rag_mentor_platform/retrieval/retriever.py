@@ -7,6 +7,8 @@ This module is a near-copy of the original `src/retrieval.py` wired
 into the new scaffold.
 """
 
+import logging
+
 from langchain_cohere import CohereRerank
 from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
@@ -16,6 +18,8 @@ from dotenv import load_dotenv
 from rag_mentor_platform.core import settings, RetrievalError
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def get_retriever():
@@ -59,7 +63,9 @@ def get_retriever():
             )
         except Exception as e:
             # Log warning but fall back to dense-only retrieval
-            print(f"Warning: Cohere reranker failed ({e}) - falling back to dense-only")
+            logger.warning(
+                "Cohere reranker failed to initialize (%s) - falling back to dense-only", e
+            )
             return base_retriever
     else:
         # No Cohere API key; use dense-only retrieval

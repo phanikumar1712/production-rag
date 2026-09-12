@@ -31,6 +31,11 @@ Thumbs.db
 # Qdrant data (persistent volume, don't commit)
 qdrant_data/
 
-# Evaluation outputs
-golden_dataset.json
+# Logs
 *.log
+
+# Test / tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/

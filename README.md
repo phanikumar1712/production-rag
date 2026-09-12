@@ -50,26 +50,6 @@ Ask questions against your documents and get precise, cited answers with source 
 - **Cross-encoder (stage 2):** Accurate — query and doc processed together with full token attention. Too slow for full corpus; runs only on the top-20 candidates.
 - **Result:** 15-30% improvement in context precision over bi-encoder alone.
 
-## Service Status
-
-| Service | Purpose | Status |
-|---|---|---|
-| **OpenRouter** | LLM (gpt-4o-mini) + Embeddings (text-embedding-3-large) | ✅ Working |
-| **Cohere** | Cross-encoder reranker (rerank-v3.5) | ✅ Working |
-| **Qdrant** | Hybrid vector store (v1.10.0, 14 indexed chunks) | ✅ Working |
-| **RAGAS** | Evaluation pipeline (v0.3.1) | ✅ Working |
-
-### RAGAS Evaluation Results
-
-Tested on 8 Q&A pairs across 3 dummy documents:
-
-| Metric | Score | Status |
-|---|---|---|
-| **Faithfulness** | 1.000 | ✅ PASS |
-| **Answer Relevancy** | 0.928 | ✅ PASS |
-| **Context Precision** | 1.000 | ✅ PASS |
-| **Context Recall** | 1.000 | ✅ PASS |
-
 ## Prerequisites
 
 - Python 3.12+
@@ -108,21 +88,26 @@ cp .env.example .env
 ### 4. Ingest your documents
 
 ```bash
-# Place .pdf, .md, or .txt files in a data/ directory, then:
-python -m src.ingestion --dir data/
+# Place .pdf, .md, or .txt files in data/, then:
+python ingest.py                    # ingest everything from data/
+python ingest.py --file docs.md     # ingest a single file
+python ingest.py --dir path/to/docs # ingest a different directory
 ```
 
 ### 5. Start the API server
 
 ```bash
-python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+python -m rag_mentor_platform.main --host 0.0.0.0 --port 8000
+# or:
+uvicorn rag_mentor_platform.api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 6. Run evaluation (optional)
+### 6. Ask questions
 
 ```bash
-# Create golden_dataset.json with question/ground_truth pairs, then:
-python -m src.evaluation
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "How many PTO days do employees get?"}'
 ```
 
 ## API Endpoints
@@ -159,7 +144,7 @@ curl -N -X POST http://localhost:8000/query/stream \
 
 ## Configuration
 
-All settings are in `src/config.py` and configurable via environment variables:
+All settings are in `rag_mentor_platform/core/config.py` and configurable via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -193,11 +178,20 @@ LLM_MODEL=google/gemini-2.0-flash-001
 
 ## Evaluation
 
-The project uses [RAGAS](https://docs.ragas.io/) v0.3.1 for automated evaluation:
+The project uses [RAGAS](https://docs.ragas.io/) for automated evaluation against `golden_dataset.json`:
+
+```python
+from rag_mentor_platform.evaluation.ragas_eval import run_evaluation
+
+results = run_evaluation("golden_dataset.json")
+print(results)  # {faithfulness, answer_relevancy, context_precision, context_recall, ...}
+```
+
+Or from the command line (requires Qdrant running + API keys configured):
 
 ```bash
-# golden_dataset.json is included with 8 Q&A pairs covering all dummy docs
-python -m src.evaluation
+python -m rag_mentor_platform.evaluation.ragas_eval           # all questions
+python -m rag_mentor_platform.evaluation.ragas_eval --limit 4 # first 4 only
 ```
 
 Metrics tracked:
@@ -208,26 +202,44 @@ Metrics tracked:
 | **ContextPrecision** | > 0.80 | Are retrieved chunks actually relevant? |
 | **ContextRecall** | > 0.80 | Did retrieval find all needed information? |
 
-> **Note:** RAGAS v0.3.x requires wrapping LangChain objects with `LangchainLLMWrapper` and `LangchainEmbeddingsWrapper` (handled in `src/evaluation.py`).
+## Testing
+
+```bash
+python -m pytest tests/ -v
+```
 
 ## Project Structure
 
 ```
 .
-├── src/
-│   ├── config.py          # Settings from env vars (pydantic-settings)
-│   ├── ingestion.py       # Load → chunk → embed → store in Qdrant
-│   ├── retrieval.py       # Hybrid search + Cohere reranking
-│   ├── generation.py      # LLM with citation enforcement
-│   ├── evaluation.py      # RAGAS v0.3 evaluation pipeline
-│   └── api.py             # FastAPI REST endpoints
-├── data/                  # Documents to ingest (.pdf, .md, .txt)
-├── golden_dataset.json    # Q&A pairs for RAGAS evaluation
-├── docker-compose.yml     # Qdrant vector store
-├── requirements.txt       # Pinned Python dependencies
-├── .env                   # Environment variables (not committed)
-├── .env.example           # Environment variable template
-└── .gitignore
+├── ingest.py                            # CLI: ingest docs into Qdrant
+├── rag_mentor_platform/                 # Main application package
+│   ├── main.py                          # Server entrypoint (uvicorn)
+│   ├── core/
+│   │   ├── config.py                    # Settings from env vars (pydantic-settings)
+│   │   └── exceptions.py                # RetrievalError, EmptyContextError, LLMGenerationError
+│   ├── api/
+│   │   ├── app.py                       # FastAPI app factory
+│   │   └── routes/
+│   │       └── chat.py                  # /query and /query/stream endpoints
+│   ├── ingestion/
+│   │   └── document_processor.py        # Load → chunk → embed → store in Qdrant
+│   ├── retrieval/
+│   │   └── retriever.py                 # Hybrid search + Cohere reranking
+│   ├── llm/
+│   │   ├── response_generator.py        # Grounded generation with citation enforcement
+│   │   └── prompts/
+│   │       └── rag_prompt_v1.txt        # RAG system prompt template
+│   └── evaluation/
+│       └── ragas_eval.py                # RAGAS evaluation pipeline
+├── data/                                # Documents to ingest (.pdf, .md, .txt)
+├── tests/                               # Smoke tests (pytest)
+├── golden_dataset.json                  # Q&A pairs for RAGAS evaluation
+├── docker-compose.yml                   # Qdrant vector store
+├── requirements.txt                     # Pinned Python dependencies
+├── .env                                 # Environment variables (not committed)
+├── .env.example                         # Environment variable template
+└── README.md
 ```
 
 ## Key Design Decisions

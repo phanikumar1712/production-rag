@@ -1,0 +1,34 @@
+[
+  {
+    "question": "How many total paid time off days are Acme employees entitled to per year?",
+    "ground_truth": "All full-time employees are entitled to 20 days of paid time off (PTO) per year, which includes 10 vacation days, 5 sick days, and 5 personal days."
+  },
+  {
+    "question": "What are the required in-office days under Acme's hybrid work policy?",
+    "ground_truth": "Employees are expected to be in the office at least 3 days per week: Monday, Tuesday, and Thursday."
+  },
+  {
+    "question": "What is Acme's company match policy for 401(k) contributions?",
+    "ground_truth": "The company matches 50% of employee contributions up to 6% of salary."
+  },
+  {
+    "question": "What is the API rate limit for the Enterprise tier?",
+    "ground_truth": "The Enterprise tier allows 10,000 requests per minute."
+  },
+  {
+    "question": "What are the valid department values when creating a new user via the Acme API?",
+    "ground_truth": "The valid department values are: engineering, marketing, sales, hr, and finance."
+  },
+  {
+    "question": "What was Acme's total revenue for Q3 2024?",
+    "ground_truth": "Total revenue for Q3 2024 was $142.5 million, representing a 12% increase compared to Q3 2023."
+  },
+  {
+    "question": "What is Acme's Annual Recurring Revenue (ARR)?",
+    "ground_truth": "Acme's Annual Recurring Revenue (ARR) is $520 million."
+  },
+  {
+    "question": "How many weeks of paid parental leave does Acme offer for primary caregivers?",
+    "ground_truth": "Acme offers 16 weeks of paid parental leave for primary caregivers, and 8 weeks for secondary caregivers."
+  }
+]

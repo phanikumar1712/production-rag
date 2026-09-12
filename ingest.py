@@ -2,214 +2,123 @@
 """
 RAG Document Ingestion Script
 
-Run manually to ingest documents from data/ directory into the vector store.
+Thin CLI wrapper around the ingestion pipeline
+(rag_mentor_platform.ingestion.document_processor).
 
 Usage:
-    python ingest.py                    # Ingest all documents
-    python ingest.py --clear            # Clear vector store and re-ingest
-    python ingest.py --file documents.md  # Ingest specific file
+    python ingest.py                          # Ingest all documents from data/
+    python ingest.py --dir path/to/docs       # Ingest a specific directory
+    python ingest.py --file documents.md      # Ingest a specific file
 """
 
-import logging
-import sys
-from pathlib import Path
-from typing import List, Optional
 import argparse
+import logging
+import shutil
+import sys
+import tempfile
+from pathlib import Path
 
-# Import from RAG platform
+from rag_mentor_platform.ingestion.document_processor import build_index
 from rag_mentor_platform.core import settings
-from rag_mentor_platform.ingestion.document_processor import DocumentProcessor
-from rag_mentor_platform.vectorstore import ChromaVectorStore
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ingest")
+
+SUPPORTED_EXTENSIONS = {".txt", ".md", ".pdf"}
 
 
-def get_documents_from_directory(data_dir: Path) -> List[Path]:
-    """Get all supported document files from directory."""
-    supported_extensions = {".txt", ".md", ".pdf"}
-    documents = []
-    
-    if not data_dir.exists():
-        logger.warning(f"Data directory not found: {data_dir}")
-        return documents
-    
-    for file_path in data_dir.rglob("*"):
-        if file_path.is_file() and file_path.suffix.lower() in supported_extensions:
-            documents.append(file_path)
-    
-    return sorted(documents)
-
-
-def ingest_documents(
-    data_dir: Path = None,
-    vector_store: ChromaVectorStore = None,
-    clear_first: bool = False,
-    specific_file: Optional[str] = None,
-) -> dict:
-    """
-    Ingest documents into vector store.
-    
-    Args:
-        data_dir: Directory containing documents (default: data/)
-        vector_store: Vector store instance (default: Chroma)
-        clear_first: Clear vector store before ingesting
-        specific_file: Only ingest specific file
-    
-    Returns:
-        Dictionary with ingestion statistics
-    """
-    if data_dir is None:
-        data_dir = Path(__file__).parent / "data"
-    
-    if vector_store is None:
-        logger.info(f"Initializing Chroma vector store...")
-        # Note: In production, inject actual Chroma client
-        vector_store = ChromaVectorStore(collection_name=settings.collection_name)
-    
-    # Clear if requested
-    if clear_first:
-        logger.info("Clearing vector store...")
-        vector_store.clear()
-    
-    # Get documents
+def resolve_documents(data_dir: Path, specific_file: str | None) -> list[Path]:
+    """Collect documents to ingest, validating they exist and are supported."""
     if specific_file:
-        doc_files = [data_dir / specific_file]
-    else:
-        doc_files = get_documents_from_directory(data_dir)
-    
-    if not doc_files:
-        logger.error(f"No documents found in {data_dir}")
-        return {"success": False, "error": "No documents found"}
-    
-    logger.info(f"Found {len(doc_files)} document(s) to ingest")
-    
-    # Initialize processor
-    processor = DocumentProcessor(
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
+        file_path = data_dir / specific_file
+        if not file_path.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            raise ValueError(
+                f"Unsupported file type '{file_path.suffix}'. "
+                f"Supported: {sorted(SUPPORTED_EXTENSIONS)}"
+            )
+        return [file_path]
+
+    if not data_dir.is_dir():
+        raise FileNotFoundError(f"Data directory not found: {data_dir}")
+
+    documents = sorted(
+        p
+        for p in data_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
     )
-    
-    # Process and ingest
-    stats = {
-        "total_files": len(doc_files),
-        "total_chunks": 0,
-        "processed_files": 0,
-        "errors": [],
-    }
-    
-    for file_path in doc_files:
-        try:
-            logger.info(f"Processing: {file_path.name}")
-            
-            # Load and chunk document
-            chunks, metadata = processor.process_document(file_path)
-            
-            if chunks:
-                # Prepare documents for vector store
-                documents = [
-                    {
-                        "id": f"{file_path.stem}_{i}",
-                        "text": chunk,
-                        "metadata": meta,
-                    }
-                    for i, (chunk, meta) in enumerate(zip(chunks, metadata))
-                ]
-                
-                # Add to vector store
-                vector_store.add_documents(documents)
-                
-                stats["processed_files"] += 1
-                stats["total_chunks"] += len(chunks)
-                
-                logger.info(
-                    f"✓ Ingested {file_path.name}: {len(chunks)} chunks"
-                )
-            else:
-                logger.warning(f"No chunks generated from {file_path.name}")
-        
-        except Exception as e:
-            error_msg = f"Error processing {file_path.name}: {str(e)}"
-            logger.error(error_msg)
-            stats["errors"].append(error_msg)
-    
-    # Summary
-    logger.info(f"\n{'='*60}")
-    logger.info("Ingestion Summary:")
-    logger.info(f"  Files processed: {stats['processed_files']}/{stats['total_files']}")
-    logger.info(f"  Total chunks: {stats['total_chunks']}")
-    logger.info(f"  Chunk size: {settings.chunk_size}")
-    logger.info(f"  Chunk overlap: {settings.chunk_overlap}")
-    if stats["errors"]:
-        logger.info(f"  Errors: {len(stats['errors'])}")
-        for error in stats["errors"]:
-            logger.debug(f"    - {error}")
-    logger.info(f"{'='*60}\n")
-    
-    stats["success"] = len(stats["errors"]) == 0
-    return stats
+    if not documents:
+        raise FileNotFoundError(
+            f"No supported documents ({sorted(SUPPORTED_EXTENSIONS)}) in {data_dir}"
+        )
+    return documents
 
 
-def main():
-    """Main entry point."""
+def ingest(data_dir: Path, specific_file: str | None = None) -> None:
+    """Stage the requested docs in a temp dir and run the pipeline.
+
+    A single file is copied into an empty temp dir so that the pipeline's
+    force_recreate=True rebuilds the collection with only that file.
+    """
+    documents = resolve_documents(data_dir, specific_file)
+    logger.info("Ingesting %d document(s): %s", len(documents),
+                ", ".join(d.name for d in documents))
+
+    # Single file: stage it alone so force_recreate doesn't wipe it with
+    # stale data from other files in the directory.
+    if specific_file:
+        with tempfile.TemporaryDirectory(prefix="rag_ingest_") as tmp:
+            staged = Path(tmp) / specific_file
+            shutil.copy2(documents[0], staged)
+            build_index(str(tmp))
+    else:
+        build_index(str(data_dir))
+
+    logger.info("Collection: %s | Dashboard: %s/dashboard",
+                settings.collection_name, settings.qdrant_url)
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Ingest documents into RAG vector store",
+        description="Ingest documents into the RAG vector store (Qdrant)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python ingest.py                          # Ingest all documents
-  python ingest.py --clear                  # Clear and re-ingest
-  python ingest.py --file acme_docs.md     # Ingest specific file
+  python ingest.py                        # Ingest all documents from data/
+  python ingest.py --dir path/to/docs     # Ingest a specific directory
+  python ingest.py --file acme_docs.md    # Ingest a single file
         """,
     )
     parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=None,
+        "--dir", type=Path, default=Path(__file__).parent / "data",
         help="Path to documents directory (default: ./data)",
     )
     parser.add_argument(
-        "--clear",
-        action="store_true",
-        help="Clear vector store before ingesting",
+        "--file", type=str, default=None,
+        help="Ingest a single file (relative to --dir) instead of the whole directory",
     )
-    parser.add_argument(
-        "--file",
-        type=str,
-        default=None,
-        help="Ingest specific file only",
-    )
-    
     args = parser.parse_args()
-    
-    logger.info("RAG Document Ingestion")
-    logger.info(f"Vector DB: Qdrant at {settings.qdrant_url}")
-    logger.info(f"Collection: {settings.collection_name}\n")
-    
+
+    logger.info("RAG Document Ingestion | Qdrant: %s | Collection: %s",
+                settings.qdrant_url, settings.collection_name)
+
     try:
-        stats = ingest_documents(
-            data_dir=args.data_dir,
-            clear_first=args.clear,
-            specific_file=args.file,
-        )
-        
-        if stats["success"]:
-            logger.info("✓ Ingestion complete!")
-            sys.exit(0)
-        else:
-            logger.error("✗ Ingestion failed")
-            sys.exit(1)
-    
+        ingest(args.dir, args.file)
     except KeyboardInterrupt:
-        logger.info("\n✗ Ingestion cancelled by user")
+        logger.info("Ingestion cancelled by user")
         sys.exit(130)
-    except Exception as e:
-        logger.error(f"✗ Fatal error: {e}", exc_info=True)
+    except (FileNotFoundError, ValueError) as e:
+        logger.error("Ingestion failed: %s", e)
         sys.exit(1)
+    except Exception as e:
+        logger.error("Fatal error: %s", e, exc_info=True)
+        sys.exit(1)
+
+    logger.info("Ingestion complete!")
 
 
 if __name__ == "__main__":

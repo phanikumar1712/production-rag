@@ -1,12 +1,15 @@
-"""Entrypoint for rag-mentor-platform service.
+"""Entrypoint for rag-mentor-platform service."""
 
-This minimal `main.py` imports the FastAPI app from the API routes and
-exposes it for Uvicorn. Adjust as needed after reviewing the scaffold.
-"""
-
-from rag_mentor_platform.api.routes.chat import app
+from rag_mentor_platform.api.app import app
 
 if __name__ == "__main__":
+    import argparse
+
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    parser = argparse.ArgumentParser(description="Run the RAG Q&A API server")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+
+    uvicorn.run(app, host=args.host, port=args.port)

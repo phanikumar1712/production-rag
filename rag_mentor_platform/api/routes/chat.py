@@ -1,15 +1,12 @@
 """
-FastAPI exposing the RAG pipeline as REST endpoints.
+Chat/query endpoints for the RAG pipeline.
 Two endpoints:
 - POST /query: returns full answer at once
 - POST /query/stream: streams tokens via Server-Sent Events (SSE)
-
-This is a migrated copy of `src/api.py` placed into the new scaffold.
 """
 
 from typing import AsyncGenerator
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
@@ -21,13 +18,7 @@ from rag_mentor_platform.core import settings
 
 load_dotenv()
 
-app = FastAPI(title="RAG Q&A API", version="1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+router = APIRouter()
 
 
 class QueryRequest(BaseModel):
@@ -40,12 +31,7 @@ class QueryResponse(BaseModel):
     context_chunks_used: int
 
 
-@app.get("/health")
-def health():
-    return {"status": "healthy", "model": settings.llm_model}
-
-
-@app.post("/query", response_model=QueryResponse)
+@router.post("/query", response_model=QueryResponse)
 def query_sync(request: QueryRequest):
     if not request.query.strip():
         raise HTTPException(status_code=422, detail="Query cannot be empty")
@@ -58,11 +44,11 @@ def query_sync(request: QueryRequest):
     )
 
 
-@app.post("/query/stream")
+@router.post("/query/stream")
 async def query_stream(request: QueryRequest):
     """
     Streaming endpoint using Server-Sent Events.
-    Each token is sent as 'data: <token>\\n\\n'
+    Each token is sent as 'data: <token>\n\n'
     Final messages: [SOURCES]...[/SOURCES] then [DONE]
     """
     if not request.query.strip():
